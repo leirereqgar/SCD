@@ -16,7 +16,12 @@ const int num_items = 40 ,   // número de items
 unsigned  cont_prod[num_items] = {0}, // contadores de verificación: producidos
           cont_cons[num_items] = {0}; // contadores de verificación: consumidos
 
+int buffer[tam_vec];
+int indice = 0; //Llevar la cuenta del último
 
+Semaphore escribe = tam_vec,
+	       lee     = 0;
+mutex mtx;
 
 //**********************************************************************
 // plantilla de función para generar un entero aleatorio uniformemente
@@ -38,9 +43,11 @@ int producir_dato() {
 	static int contador = 0 ;
 	this_thread::sleep_for( chrono::milliseconds( aleatorio<20,100>() ));
 
+	mtx.lock();
 	cout << "producido: " << contador << endl << flush ;
+	mtx.unlock();
 
-	cont_prod[contador] ++ ;
+	cont_prod[contador]++ ;
 	return contador++ ;
 }
 //----------------------------------------------------------------------
@@ -50,8 +57,9 @@ void consumir_dato( unsigned dato ) {
 	cont_cons[dato] ++ ;
 	this_thread::sleep_for( chrono::milliseconds( aleatorio<20,100>() ));
 
+	mtx.lock();
 	cout << "                  consumido: " << dato << endl ;
-
+	mtx.unlock();
 }
 
 
@@ -80,7 +88,13 @@ void test_contadores() {
 void  funcion_hebra_productora() {
 	for(unsigned i = 0; i < num_items; i++){
 		int dato = producir_dato() ;
-		// completar ........
+
+		sem_wait(escribe);
+		mtx.lock();
+		buffer[indice] = dato;
+		indice++;
+		mtx.unlock();
+		sem_signal(lee);
 	}
 }
 
@@ -89,8 +103,14 @@ void  funcion_hebra_productora() {
 void funcion_hebra_consumidora() {
 	for( unsigned i = 0; i < num_items; i++){
 		int dato ;
-		// completar ......
-		consumir_dato(dato) ;
+
+		sem_wait(lee);
+		mtx.lock();
+		indice--;
+		dato = buffer[indice];
+		mtx.unlock();
+		consumir_dato(dato);
+		sem_signal(escribe);
 	}
 }
 //----------------------------------------------------------------------
