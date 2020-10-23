@@ -1,20 +1,23 @@
-.SUFFIXES:
-.PHONY: pc
-.PRECIOUS: %_exe
+HOME = .
+BIN  = $(HOME)/bin
+INC  = $(HOME)/include
+SRC  = $(HOME)/src
 
-compilador:=g++
+CXXFLAGS = -std=c++11 -O2 -Wall -I$(INC) -pthread
 
-t: test-semaforos_exe
-	./$< | more
+all: bin prodcons-LIFO prodcons-FIFO fumadores
 
-pc: prodcons_exe
-	./$<
+bin: 
+	@mkdir -p $(BIN)
 
-fu: fumadores_exe
-	./$< 
+prodcons-LIFO: $(SRC)/prodcons-LIFO.cpp $(SRC)/Semaphore.cpp
+	@printf "Creando productor consumidor LIFO\n"
+	@$(CXX) $(CXXFLAGS) -o $(BIN)/prodcons-LIFO $(SRC)/prodcons-LIFO.cpp $(SRC)/Semaphore.cpp
 
-%_exe: %.cpp Semaphore.cpp Semaphore.h
-		$(compilador) -std=c++11 -pthread -o $@ $< Semaphore.cpp
-
-clean:
-	rm -f *_exe
+prodcons-FIFO: $(SRC)/prodcons-FIFO.cpp $(SRC)/Semaphore.cpp
+	@printf "Creando productor consumidor FIFO\n"
+	@$(CXX) $(CXXFLAGS) -o $(BIN)/prodcons-FIFO $(SRC)/prodcons-FIFO.cpp $(SRC)/Semaphore.cpp
+	
+fumadores: $(SRC)/fumadores.cpp $(SRC)/Semaphore.cpp
+	@printf "Creando problema fumadores\n"
+	@$(CXX) $(CXXFLAGS) -o $(BIN)/fumadores $(SRC)/fumadores.cpp $(SRC)/Semaphore.cpp
