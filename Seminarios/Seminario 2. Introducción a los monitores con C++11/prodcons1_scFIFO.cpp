@@ -3,10 +3,10 @@
 // Sistemas concurrentes y Distribuidos.
 // Seminario 2. Introducción a los monitores en C++11.
 //
-// archivo: prodcons_1.cpp
+// archivo: prodcons1_sc_FIFO.cpp
 // Ejemplo de un monitor en C++11 con semántica SC, para el problema
 // del productor/consumidor, con un único productor y un único consumidor.
-// Opcion LIFO (stack)
+// Opcion FIFO (stack)
 //
 // Historial:
 // Creado en Julio de 2017
@@ -25,9 +25,9 @@ using namespace std ;
 
 constexpr int num_items  = 40 ;     // número de items a producir/consumir
 
-mutex mtx ;                 // mutex de escritura en pantalla
+mutex mtx;                 // mutex de escritura en pantalla
 unsigned cont_prod[num_items], // contadores de verificación: producidos
-	      cont_cons[num_items]; // contadores de verificación: consumidos
+         cont_cons[num_items]; // contadores de verificación: consumidos
 
 //**********************************************************************
 // plantilla de función para generar un entero aleatorio uniformemente
@@ -61,7 +61,6 @@ void consumir_dato( unsigned dato ) {
 		cout << " dato === " << dato << ", num_items == " << num_items << endl ;
 		assert( dato < num_items );
 	}
-
 	cont_cons[dato] ++ ;
 	this_thread::sleep_for( chrono::milliseconds( aleatorio<20,100>() ));
 	mtx.lock();
@@ -88,13 +87,11 @@ void test_contadores() {
 			cout << "error: valor " << i << " producido " << cont_prod[i] << " veces." << endl ;
 			ok = false ;
 		}
-
 		if ( cont_cons[i] != 1 ) {
 			cout << "error: valor " << i << " consumido " << cont_cons[i] << " veces" << endl ;
 			ok = false ;
 		}
 	}
-
 	if (ok)
 		cout << endl << flush << "solución (aparentemente) correcta." << endl << flush ;
 }
@@ -108,7 +105,9 @@ private:
 		num_celdas_total = 10;   //  núm. de entradas del buffer
 	int                        // variables permanentes
 		buffer[num_celdas_total],//  buffer de tamaño fijo, con los datos
-		primera_libre ;          //  indice de celda de la próxima inserción
+		primera_libre ,          //  indice de celda de la próxima inserción
+		primera_ocupada ,       // indice de celda de la proxima extraccion
+		celdas_ocupadas ;            // variable adicional = n
 	mutex cerrojo_monitor ;        // cerrojo del monitor
 	condition_variable         // colas condicion:
 		ocupadas,                //  cola donde espera el consumidor (n>0)
@@ -117,29 +116,32 @@ private:
 public:                    // constructor y métodos públicos
 	ProdCons1SC() ;           // constructor
 	int  leer();                // extraer un valor (sentencia L) (consumidor)
-	void escribir(int valor); // insertar un valor (sentencia E) (productor)
+	void escribir( int valor ); // insertar un valor (sentencia E) (productor)
 } ;
 // -----------------------------------------------------------------------------
 
-ProdCons1SC::ProdCons1SC() {
+ProdCons1SC::ProdCons1SC(  ) {
 	primera_libre = 0 ;
+	primera_ocupada = 0;
+	celdas_ocupadas = 0;
 }
 // -----------------------------------------------------------------------------
 // función llamada por el consumidor para extraer un dato
 
-int ProdCons1SC::leer() {
+int ProdCons1SC::leer(  ) {
 	// ganar la exclusión mutua del monitor con una guarda
-	unique_lock<mutex> guarda(cerrojo_monitor);
+	unique_lock<mutex> guarda( cerrojo_monitor );
 
 	// esperar bloqueado hasta que 0 < num_celdas_ocupadas
-	if ( primera_libre == 0 )
+	if ( celdas_ocupadas == 0 )
 		ocupadas.wait( guarda );
 
 	// hacer la operación de lectura, actualizando estado del monitor
-	assert( 0 < primera_libre  );
-	primera_libre-- ;
-	const int valor = buffer[primera_libre] ;
-
+	assert( 0 < celdas_ocupadas  );// o comparar con primera_ocupada
+	const int valor = buffer[primera_ocupada] ;
+	primera_ocupada++ ;
+	primera_ocupada %= num_celdas_total;
+	celdas_ocupadas--;
 
 	// señalar al productor que hay un hueco libre, por si está esperando
 	libres.notify_one();
@@ -149,20 +151,22 @@ int ProdCons1SC::leer() {
 }
 // -----------------------------------------------------------------------------
 
-void ProdCons1SC::escribir(int valor) {
+void ProdCons1SC::escribir( int valor ) {
 	// ganar la exclusión mutua del monitor con una guarda
-	unique_lock<mutex> guarda(cerrojo_monitor);
+	unique_lock<mutex> guarda( cerrojo_monitor );
 
 	// esperar bloqueado hasta que num_celdas_ocupadas < num_celdas_total
-	if (primera_libre == num_celdas_total)
+	if ( celdas_ocupadas == num_celdas_total ) //La primera vez no pasa por esto
 		libres.wait( guarda );
 
-	//cout << "escribir: ocup == " << num_celdas_ocupadas << ", total == " << num_celdas_total << endl ;
-	assert( primera_libre < num_celdas_total );
+		//cout << "escribir: ocup == " << num_celdas_ocupadas << ", total == " << num_celdas_total << endl ;
+	assert( celdas_ocupadas < num_celdas_total ); //si no es cierto sale. //o comparar con primera_libre
 
 	// hacer la operación de inserción, actualizando estado del monitor
 	buffer[primera_libre] = valor ;
 	primera_libre++ ;
+	primera_libre %= num_celdas_total;
+	celdas_ocupadas++;
 
 	// señalar al consumidor que ya hay una celda ocupada (por si esta esperando)
 	ocupadas.notify_one();
@@ -171,7 +175,7 @@ void ProdCons1SC::escribir(int valor) {
 // funciones de hebras
 
 void funcion_hebra_productora( ProdCons1SC * monitor ) {
-	for( unsigned i = 0 ; i < num_items ; i++ ) {
+   for( unsigned i = 0 ; i < num_items ; i++ ) {
 		int valor = producir_dato() ;
 		monitor->escribir( valor );
 	}

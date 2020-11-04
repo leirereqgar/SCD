@@ -23,7 +23,9 @@
 
 using namespace std ;
 
-constexpr int num_items  = 40 ;     // número de items a producir/consumir
+constexpr int num_items    = 40 ;     // número de items a producir/consumir
+const int num_productores  = 10,
+          num_consumidores = 10;
 
 mutex mtx ;                 // mutex de escritura en pantalla
 unsigned cont_prod[num_items], // contadores de verificación: producidos
@@ -45,7 +47,7 @@ template< int min, int max > int aleatorio() {
 // funciones comunes a las dos soluciones (fifo y lifo)
 //----------------------------------------------------------------------
 
-int producir_dato() {
+int producir_dato(unsigned i) {
 	static int contador = 0 ;
 	this_thread::sleep_for( chrono::milliseconds( aleatorio<20,100>() ));
 	mtx.lock();

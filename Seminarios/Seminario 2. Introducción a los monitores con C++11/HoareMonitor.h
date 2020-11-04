@@ -13,7 +13,7 @@
 // December 2017 : added TODO above, about implementation
 // July 2018     : changed implementation to use FIFO semaphores, as described in
 //                 Hoare's article.
-// Oct 2020      : fixed a bug: 'mutex_count' was not initialized to 0, 
+// Oct 2020      : fixed a bug: 'mutex_count' was not initialized to 0,
 //                 (the bug showed just on mac with the XCode clang compiler, but not in linux
 //                  as compiler use to insert initialization to 0 code).
 //
